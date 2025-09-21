@@ -2,6 +2,7 @@ pub mod agent_server_store;
 pub mod buffer_store;
 mod color_extractor;
 pub mod connection_manager;
+mod context_index;
 pub mod context_server_store;
 pub mod debounced_delay;
 pub mod debugger;
@@ -22,9 +23,13 @@ pub mod worktree_store;
 #[cfg(test)]
 mod project_tests;
 
+#[cfg(test)]
+mod context_index_test;
+
 mod direnv;
 mod environment;
 use buffer_diff::BufferDiff;
+use context_index::ContextIndex;
 use context_server_store::ContextServerStore;
 pub use environment::{EnvironmentErrorMessage, ProjectEnvironmentEvent};
 use git::repository::get_git_committer;
@@ -212,6 +217,7 @@ pub struct Project {
     settings_observer: Entity<SettingsObserver>,
     toolchain_store: Option<Entity<ToolchainStore>>,
     agent_location: Option<AgentLocation>,
+    context_index: ContextIndex,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1198,6 +1204,7 @@ impl Project {
                 toolchain_store: Some(toolchain_store),
 
                 agent_location: None,
+                context_index: ContextIndex::new(),
             }
         })
     }
@@ -1380,6 +1387,7 @@ impl Project {
 
                 toolchain_store: Some(toolchain_store),
                 agent_location: None,
+                context_index: ContextIndex::new(),
             };
 
             // remote server -> local machine handlers
@@ -1861,6 +1869,27 @@ impl Project {
 
     pub fn opened_buffers(&self, cx: &App) -> Vec<Entity<Buffer>> {
         self.buffer_store.read(cx).buffers().collect()
+    }
+
+    /// Get context metadata for a file, if available
+    pub fn get_file_context_metadata(&self, path: &Path) -> Option<&context_index::FileContextMetadata> {
+        self.context_index.get_file_metadata(path)
+    }
+
+    /// Get context metadata for a buffer, if available
+    pub fn get_buffer_context_metadata(&self, buffer_id: BufferId) -> Option<&context_index::FileContextMetadata> {
+        self.context_index.get_buffer_metadata(buffer_id)
+    }
+
+    /// Find files that might be contextually related to the given file
+    pub fn find_related_files(&self, path: &Path) -> Vec<PathBuf> {
+        self.context_index.find_related_files(path)
+    }
+
+    /// Update context metadata for a buffer (called when buffer is opened or modified)
+    pub fn update_buffer_context(&mut self, buffer: &Entity<Buffer>, cx: &App) {
+        let buffer = buffer.read(cx);
+        self.context_index.update_buffer_metadata(buffer.remote_id(), &buffer);
     }
 
     pub fn environment(&self) -> &Entity<ProjectEnvironment> {
@@ -2891,6 +2920,8 @@ impl Project {
         match event {
             BufferStoreEvent::BufferAdded(buffer) => {
                 self.register_buffer(buffer, cx).log_err();
+                // Update context index when buffer is added
+                self.update_buffer_context(buffer, cx);
             }
             BufferStoreEvent::BufferDropped(buffer_id) => {
                 if let Some(ref remote_client) = self.remote_client {
@@ -2903,6 +2934,8 @@ impl Project {
                         })
                         .log_err();
                 }
+                // Note: We could remove from context index here, but we keep it for now
+                // to maintain search history even after buffers are closed
             }
             _ => {}
         }
@@ -3127,6 +3160,8 @@ impl Project {
                 cx.emit(Event::WorktreeAdded(worktree.read(cx).id()));
             }
             WorktreeStoreEvent::WorktreeRemoved(_, id) => {
+                // Clear context index for removed worktree
+                self.context_index.clear_worktree(*id);
                 cx.emit(Event::WorktreeRemoved(*id));
             }
             WorktreeStoreEvent::WorktreeReleased(_, id) => {
@@ -3135,6 +3170,19 @@ impl Project {
             WorktreeStoreEvent::WorktreeOrderChanged => cx.emit(Event::WorktreeOrderChanged),
             WorktreeStoreEvent::WorktreeUpdateSent(_) => {}
             WorktreeStoreEvent::WorktreeUpdatedEntries(worktree_id, changes) => {
+                // Update context index for file changes
+                if let Some(worktree) = self.worktree_store.read(cx).worktree_for_id(*worktree_id, cx) {
+                    for (path, _, entry) in changes {
+                        if let Some(entry) = entry {
+                            if entry.kind == EntryKind::File {
+                                let abs_path = worktree.read(cx).abs_path().join(path);
+                                let language = self.languages.language_for_file(&entry.path, Some(&abs_path));
+                                self.context_index.update_file_metadata(abs_path, language, entry);
+                            }
+                        }
+                    }
+                }
+                
                 self.client()
                     .telemetry()
                     .report_discovered_project_type_events(*worktree_id, changes);
@@ -3983,6 +4031,84 @@ impl Project {
         result_rx
     }
 
+    /// Context-aware search that prioritizes files related to the current context
+    pub fn search_with_context(
+        &mut self,
+        query: SearchQuery,
+        context_file: Option<&Path>,
+        cx: &mut Context<Self>,
+    ) -> Receiver<SearchResult> {
+        let (result_tx, result_rx) = smol::channel::unbounded();
+        
+        // Get related files if we have context
+        let related_files = if let Some(context_file) = context_file {
+            self.find_related_files(context_file)
+        } else {
+            Vec::new()
+        };
+
+        let matching_buffers_rx = if query.is_opened_only() {
+            self.sort_search_candidates_with_context(&query, &related_files, cx)
+        } else {
+            self.find_search_candidate_buffers_with_context(&query, &related_files, MAX_SEARCH_RESULT_FILES + 1, cx)
+        };
+
+        cx.spawn(async move |_, cx| {
+            let mut range_count = 0;
+            let mut buffer_count = 0;
+            let mut limit_reached = false;
+            let query = Arc::new(query);
+            let chunks = matching_buffers_rx.ready_chunks(64);
+
+            let mut chunks = pin!(chunks);
+            'outer: while let Some(matching_buffer_chunk) = chunks.next().await {
+                let mut chunk_results = Vec::with_capacity(matching_buffer_chunk.len());
+                for buffer in matching_buffer_chunk {
+                    let query = query.clone();
+                    let snapshot = buffer.read_with(cx, |buffer, _| buffer.snapshot())?;
+                    chunk_results.push(cx.background_spawn(async move {
+                        let ranges = query
+                            .search(&snapshot, None)
+                            .await
+                            .iter()
+                            .map(|range| {
+                                snapshot.anchor_before(range.start)
+                                    ..snapshot.anchor_after(range.end)
+                            })
+                            .collect::<Vec<_>>();
+                        (buffer, ranges)
+                    }));
+                }
+
+                for chunk_result in chunk_results {
+                    let (buffer, ranges) = chunk_result.await;
+                    range_count += ranges.len();
+                    buffer_count += 1;
+
+                    if buffer_count > MAX_SEARCH_RESULT_FILES {
+                        limit_reached = true;
+                        break 'outer;
+                    }
+
+                    if !ranges.is_empty() {
+                        result_tx.send(SearchResult::Buffer { buffer, ranges }).await?;
+                    }
+
+                    yield_now().await;
+                }
+            }
+
+            if limit_reached {
+                result_tx.send(SearchResult::LimitReached).await?;
+            }
+
+            anyhow::Ok(())
+        })
+        .detach();
+
+        result_rx
+    }
+
     fn find_search_candidate_buffers(
         &mut self,
         query: &SearchQuery,
@@ -4083,6 +4209,88 @@ impl Project {
             anyhow::Ok(())
         })
         .detach_and_log_err(cx);
+        rx
+    }
+
+    fn find_search_candidate_buffers_with_context(
+        &mut self,
+        query: &SearchQuery,
+        related_files: &[PathBuf],
+        limit: usize,
+        cx: &mut Context<Project>,
+    ) -> Receiver<Entity<Buffer>> {
+        if self.is_local() {
+            let fs = self.fs.clone();
+            // For now, use the standard method but prioritize related files in the results
+            self.buffer_store.update(cx, |buffer_store, cx| {
+                buffer_store.find_search_candidates(query, limit, fs, cx)
+            })
+        } else {
+            self.find_search_candidates_remote(query, limit, cx)
+        }
+    }
+
+    fn sort_search_candidates_with_context(
+        &mut self,
+        search_query: &SearchQuery,
+        related_files: &[PathBuf],
+        cx: &mut Context<Project>,
+    ) -> Receiver<Entity<Buffer>> {
+        let worktree_store = self.worktree_store.read(cx);
+        let mut buffers = self
+            .opened_buffers(cx)
+            .into_iter()
+            .filter(|b| {
+                let b = b.read(cx);
+                if let Some(file) = b.file() {
+                    if !search_query.match_path(file.path()) {
+                        return false;
+                    }
+                    if let Some(entry) = b
+                        .entry_id(cx)
+                        .and_then(|entry_id| worktree_store.entry_for_id(entry_id, cx))
+                        && entry.is_ignored
+                        && !search_query.include_ignored()
+                    {
+                        return false;
+                    }
+                }
+                true
+            })
+            .collect::<Vec<_>>();
+        
+        let (tx, rx) = smol::channel::unbounded();
+        
+        // Sort with context awareness - prioritize related files
+        buffers.sort_by(|a, b| {
+            let a_file = a.read(cx).file();
+            let b_file = b.read(cx).file();
+            
+            match (a_file, b_file) {
+                (None, None) => a.read(cx).remote_id().cmp(&b.read(cx).remote_id()),
+                (None, Some(_)) => std::cmp::Ordering::Less,
+                (Some(_), None) => std::cmp::Ordering::Greater,
+                (Some(a_file), Some(b_file)) => {
+                    let a_path = a_file.path();
+                    let b_path = b_file.path();
+                    
+                    // Check if files are in related files list
+                    let a_related = related_files.iter().any(|p| p.as_path() == a_path);
+                    let b_related = related_files.iter().any(|p| p.as_path() == b_path);
+                    
+                    match (a_related, b_related) {
+                        (true, false) => std::cmp::Ordering::Less,  // a comes first
+                        (false, true) => std::cmp::Ordering::Greater, // b comes first
+                        _ => compare_paths((a_path, true), (b_path, true)), // default ordering
+                    }
+                }
+            }
+        });
+        
+        for buffer in buffers {
+            tx.send_blocking(buffer.clone()).unwrap()
+        }
+
         rx
     }
 

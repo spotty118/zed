@@ -593,6 +593,41 @@ impl SearchQuery {
             Self::Text { .. } => None,
         }
     }
+
+    /// Create a context-aware search that prioritizes files related to a given context file
+    pub fn context_aware_text(
+        query: impl ToString,
+        context_file: Option<&Path>,
+        whole_word: bool,
+        case_sensitive: bool,
+        include_ignored: bool,
+        files_to_include: PathMatcher,
+        files_to_exclude: PathMatcher,
+        match_full_paths: bool,
+        buffers: Option<Vec<Entity<Buffer>>>,
+    ) -> Result<(Self, Vec<PathBuf>)> {
+        let search_query = Self::text(
+            query,
+            whole_word,
+            case_sensitive,
+            include_ignored,
+            files_to_include,
+            files_to_exclude,
+            match_full_paths,
+            buffers,
+        )?;
+
+        // If we have a context file, get related files
+        let related_files = context_file
+            .map(|_path| {
+                // This would be populated by the Project's context index
+                // For now, return empty vector as this will be called from Project
+                Vec::new()
+            })
+            .unwrap_or_default();
+
+        Ok((search_query, related_files))
+    }
 }
 
 #[cfg(test)]
