@@ -135,6 +135,19 @@ async fn test_agentic_editing_context_analysis_edge_cases(cx: &mut TestAppContex
     let context = edit_agent.analyze_file_context(&snapshot, &Some(std::path::PathBuf::from("large.txt")));
     assert!(context.contains("Large file - consider if changes could be broken into smaller pieces"));
 
+    // Test with very very large file (should trigger stronger warning)
+    let very_large_content = "line\n".repeat(2500);
+    let very_large_buffer = cx.new(|cx| {
+        Buffer::from_text(
+            &very_large_content,
+            Some(LanguageRegistry::test(cx.background_executor())),
+            cx,
+        )
+    });
+    let snapshot = very_large_buffer.read_with(cx, |buffer, _| buffer.snapshot());
+    let context = edit_agent.analyze_file_context(&snapshot, &Some(std::path::PathBuf::from("very_large.txt")));
+    assert!(context.contains("WARNING: Very large file - agentic analysis may be slower"));
+
     // Test with file containing TODO comments
     let todo_buffer = cx.new(|cx| {
         Buffer::from_text(

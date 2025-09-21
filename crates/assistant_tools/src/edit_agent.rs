@@ -914,6 +914,9 @@ impl EditAgent {
         if line_count > 500 {
             context_info.push("Large file - consider if changes could be broken into smaller pieces".to_string());
         }
+        if line_count > 2000 {
+            context_info.push("WARNING: Very large file - agentic analysis may be slower".to_string());
+        }
         
         // Add consciousness reminder
         context_info.push("IMPORTANT: Think carefully about the implications of your changes. Ensure they are minimal, safe, and maintain the existing code style and patterns.".to_string());
