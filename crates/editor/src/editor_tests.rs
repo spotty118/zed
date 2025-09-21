@@ -17606,7 +17606,7 @@ async fn test_completions_resolve_happens_once(cx: &mut TestAppContext) {
                         resolve_requests_2.fetch_add(1, atomic::Ordering::Release);
                         Ok(resolved_item_2.clone())
                     } else {
-                        panic!("Unexpected completion item {unresolved_request:?}")
+                        panic!("Unexpected completion item {:?}", unresolved_request)
                     }
                 }
             }
