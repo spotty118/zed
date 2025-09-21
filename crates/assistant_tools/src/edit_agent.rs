@@ -18,6 +18,7 @@ use futures::{
     channel::mpsc::{self, UnboundedReceiver},
     pin_mut,
     stream::BoxStream,
+    channel::watch,
 };
 use gpui::{AppContext, AsyncApp, Entity, Task};
 use language::{Anchor, Buffer, BufferSnapshot, LineIndent, Point, TextBufferSnapshot};
@@ -111,8 +112,8 @@ pub struct EditAgent {
     project: Entity<Project>,
     templates: Arc<Templates>,
     edit_format: EditFormat,
-    consciousness_enabled: bool,
-    deliberation_enabled: bool,
+    pub consciousness_enabled: bool,
+    pub deliberation_enabled: bool,
 }
 
 impl EditAgent {
@@ -881,7 +882,7 @@ impl EditAgent {
             }
         }
         
-        // Analyze file content patterns
+        // Analyze file content patterns - get text once for efficiency
         let text = snapshot.text();
         let line_count = text.lines().count();
         context_info.push(format!("File size: {} lines", line_count));
