@@ -887,7 +887,7 @@ mod test_inventory {
                 .await
                 .into_iter()
                 .find(|(_, task)| task.label == task_name)
-                .unwrap_or_else(|| panic!("Failed to find task with name {task_name}"));
+                .unwrap_or_else(|| panic!("Failed to find task with name {}", task_name));
 
             let id_base = task_source_kind.to_id_base();
             inventory
@@ -896,7 +896,7 @@ mod test_inventory {
                         task_source_kind.clone(),
                         task.resolve_task(&id_base, &TaskContext::default())
                             .unwrap_or_else(|| {
-                                panic!("Failed to resolve task with name {task_name}")
+                                panic!("Failed to resolve task with name {}", task_name)
                             }),
                     )
                 })
@@ -929,7 +929,7 @@ mod test_inventory {
                         task_source_kind.clone(),
                         task.resolve_task(&id_base, &TaskContext::default())
                             .unwrap_or_else(|| {
-                                panic!("Failed to resolve task with name {task_name}")
+                                panic!("Failed to resolve task with name {}", task_name)
                             }),
                     );
                 })

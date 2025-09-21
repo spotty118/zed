@@ -1133,7 +1133,7 @@ mod test {
                 "invalid test input: total width not the same {total_1}, {total_2}"
             );
             let (expected, total_3, None) = parse::<COLS>(expected) else {
-                panic!("invalid test input: expected should not be marked: {expected:?}");
+                panic!("invalid test input: expected should not be marked: {:?}", expected);
             };
             assert_eq!(
                 total_2, total_3,
@@ -1308,7 +1308,7 @@ mod test {
                 panic!("invalid test input: widths should be marked");
             };
             let (expected, total_2, None) = parse::<COLS>(expected) else {
-                panic!("invalid test input: expected should not be marked: {expected:?}");
+                panic!("invalid test input: expected should not be marked: {:?}", expected);
             };
             assert_eq!(
                 total_1, total_2,
