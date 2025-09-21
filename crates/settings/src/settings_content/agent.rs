@@ -109,6 +109,14 @@ pub struct AgentSettingsContent {
     ///
     /// Default: 4
     pub message_editor_min_lines: Option<usize>,
+    /// Whether to enable agentic editing features for more conscious and deliberate AI assistance.
+    ///
+    /// Default: true
+    pub agentic_editing_enabled: Option<bool>,
+    /// Whether to enable deliberation phase for complex edits in agentic editing.
+    ///
+    /// Default: true
+    pub agentic_deliberation_enabled: Option<bool>,
 }
 
 impl AgentSettingsContent {

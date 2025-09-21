@@ -24,6 +24,8 @@ Learn how to get started using AI with Zed and all its capabilities.
 
 - [Inline Assistant](./inline-assistant.md): Discover how to use the agent to power inline transformations directly within a file or terminal.
 
+- [Agentic Editing](./agentic-editing.md): Learn about conscious and deliberate AI editing for safer, more thoughtful code modifications.
+
 ## Edit Prediction
 
 - [Edit Prediction](./edit-prediction.md): Learn about Zed's AI prediction feature that helps autocomplete your code.

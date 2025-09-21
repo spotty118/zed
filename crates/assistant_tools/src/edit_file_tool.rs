@@ -263,13 +263,20 @@ impl Tool for EditFileTool {
         let action_log_clone = action_log.clone();
         let task = cx.spawn(async move |cx: &mut AsyncApp| {
             let edit_format = EditFormat::from_model(model.clone())?;
+            let (agentic_enabled, deliberation_enabled) = cx.update(|cx| {
+                let agent_settings = agent_settings::AgentSettings::get_global(cx);
+                (agent_settings.agentic_editing_enabled, agent_settings.agentic_deliberation_enabled)
+            })?;
+            
             let edit_agent = EditAgent::new(
                 model,
                 project.clone(),
                 action_log_clone,
                 Templates::new(),
                 edit_format,
-            );
+            )
+            .with_consciousness(agentic_enabled)
+            .with_deliberation(deliberation_enabled);
 
             let buffer = project
                 .update(cx, |project, cx| {
@@ -307,6 +314,7 @@ impl Tool for EditFileTool {
 
             let mut hallucinated_old_text = false;
             let mut ambiguous_ranges = Vec::new();
+            let mut consciousness_logs = Vec::new();
             while let Some(event) = events.next().await {
                 match event {
                     EditAgentOutputEvent::Edited { .. } => {
@@ -319,6 +327,27 @@ impl Tool for EditFileTool {
                     EditAgentOutputEvent::ResolvingEditRange(range) => {
                         if let Some(card) = card_clone.as_ref() {
                             card.update(cx, |card, cx| card.reveal_range(range, cx))?;
+                        }
+                    }
+                    EditAgentOutputEvent::ConsciousnessLog(log) => {
+                        consciousness_logs.push(log);
+                        if let Some(card) = card_clone.as_ref() {
+                            card.update(cx, |card, cx| card.add_consciousness_log(&consciousness_logs.last().unwrap(), cx))?;
+                        }
+                    }
+                    EditAgentOutputEvent::DeliberationStarted => {
+                        if let Some(card) = card_clone.as_ref() {
+                            card.update(cx, |card, cx| card.set_deliberation_status("Deliberating...", cx))?;
+                        }
+                    }
+                    EditAgentOutputEvent::DeliberationCompleted => {
+                        if let Some(card) = card_clone.as_ref() {
+                            card.update(cx, |card, cx| card.set_deliberation_status("Planning complete", cx))?;
+                        }
+                    }
+                    EditAgentOutputEvent::ContextAnalyzed(context) => {
+                        if let Some(card) = card_clone.as_ref() {
+                            card.update(cx, |card, cx| card.set_context_analysis(context, cx))?;
                         }
                     }
                 }
@@ -575,6 +604,9 @@ pub struct EditFileToolCard {
     error_expanded: Option<Entity<Markdown>>,
     full_height_expanded: bool,
     total_lines: Option<u32>,
+    consciousness_logs: Vec<String>,
+    deliberation_status: Option<String>,
+    context_analysis: Option<String>,
 }
 
 impl EditFileToolCard {
@@ -624,6 +656,9 @@ impl EditFileToolCard {
             error_expanded: None,
             full_height_expanded: expand_edit_card,
             total_lines: None,
+            consciousness_logs: Vec::new(),
+            deliberation_status: None,
+            context_analysis: None,
         }
     }
 
@@ -692,6 +727,21 @@ impl EditFileToolCard {
     pub fn reveal_range(&mut self, range: Range<Anchor>, cx: &mut Context<Self>) {
         self.revealed_ranges.push(range);
         self.update_visible_ranges(cx);
+    }
+
+    pub fn add_consciousness_log(&mut self, log: &str, cx: &mut Context<Self>) {
+        self.consciousness_logs.push(log.to_string());
+        cx.notify();
+    }
+
+    pub fn set_deliberation_status(&mut self, status: &str, cx: &mut Context<Self>) {
+        self.deliberation_status = Some(status.to_string());
+        cx.notify();
+    }
+
+    pub fn set_context_analysis(&mut self, analysis: String, cx: &mut Context<Self>) {
+        self.context_analysis = Some(analysis);
+        cx.notify();
     }
 
     fn update_visible_ranges(&mut self, cx: &mut Context<Self>) {
@@ -1095,6 +1145,53 @@ impl ToolCard for EditFileToolCard {
             .when(self.is_loading() && error_message.is_none(), |card| {
                 card.child(waiting_for_diff)
             })
+            .when(
+                !self.consciousness_logs.is_empty() || self.deliberation_status.is_some() || self.context_analysis.is_some(),
+                |card| {
+                    let consciousness_panel = v_flex()
+                        .gap_1()
+                        .p_2()
+                        .bg(cx.theme().colors().surface_background)
+                        .border_1()
+                        .border_color(cx.theme().colors().border_variant)
+                        .rounded_md()
+                        .when(self.deliberation_status.is_some(), |panel| {
+                            panel.child(
+                                div()
+                                    .text_size(rems(0.75))
+                                    .text_color(cx.theme().colors().text_accent)
+                                    .child(format!("🧠 {}", self.deliberation_status.as_ref().unwrap()))
+                            )
+                        })
+                        .when(self.context_analysis.is_some(), |panel| {
+                            panel.child(
+                                div()
+                                    .text_size(rems(0.75))
+                                    .text_color(cx.theme().colors().text_muted)
+                                    .child(format!("📝 Context: {}", 
+                                        self.context_analysis.as_ref().unwrap()
+                                            .lines()
+                                            .next()
+                                            .unwrap_or("Analyzing...")
+                                    ))
+                            )
+                        })
+                        .when(!self.consciousness_logs.is_empty(), |panel| {
+                            panel.child(
+                                div()
+                                    .text_size(rems(0.75))
+                                    .text_color(cx.theme().colors().text_muted)
+                                    .child(format!("💭 {}", 
+                                        self.consciousness_logs.last()
+                                            .map(|log| format!("Agent: {}", log))
+                                            .unwrap_or_default()
+                                    ))
+                            )
+                        });
+                    
+                    card.child(consciousness_panel)
+                }
+            )
             .when(self.preview_expanded && !self.is_loading(), |card| {
                 let editor_view = v_flex()
                     .relative()
