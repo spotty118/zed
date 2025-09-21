@@ -3,6 +3,8 @@ mod edit_parser;
 #[cfg(test)]
 mod evals;
 mod streaming_fuzzy_matcher;
+#[cfg(test)]
+mod agentic_tests;
 
 use crate::{Template, Templates};
 use action_log::ActionLog;

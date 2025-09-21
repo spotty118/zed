@@ -1145,6 +1145,53 @@ impl ToolCard for EditFileToolCard {
             .when(self.is_loading() && error_message.is_none(), |card| {
                 card.child(waiting_for_diff)
             })
+            .when(
+                !self.consciousness_logs.is_empty() || self.deliberation_status.is_some() || self.context_analysis.is_some(),
+                |card| {
+                    let consciousness_panel = v_flex()
+                        .gap_1()
+                        .p_2()
+                        .bg(cx.theme().colors().surface_background)
+                        .border_1()
+                        .border_color(cx.theme().colors().border_variant)
+                        .rounded_md()
+                        .when(self.deliberation_status.is_some(), |panel| {
+                            panel.child(
+                                div()
+                                    .text_size(rems(0.75))
+                                    .text_color(cx.theme().colors().text_accent)
+                                    .child(format!("🧠 {}", self.deliberation_status.as_ref().unwrap()))
+                            )
+                        })
+                        .when(self.context_analysis.is_some(), |panel| {
+                            panel.child(
+                                div()
+                                    .text_size(rems(0.75))
+                                    .text_color(cx.theme().colors().text_muted)
+                                    .child(format!("📝 Context: {}", 
+                                        self.context_analysis.as_ref().unwrap()
+                                            .lines()
+                                            .next()
+                                            .unwrap_or("Analyzing...")
+                                    ))
+                            )
+                        })
+                        .when(!self.consciousness_logs.is_empty(), |panel| {
+                            panel.child(
+                                div()
+                                    .text_size(rems(0.75))
+                                    .text_color(cx.theme().colors().text_muted)
+                                    .child(format!("💭 {}", 
+                                        self.consciousness_logs.last()
+                                            .map(|log| format!("Agent: {}", log))
+                                            .unwrap_or_default()
+                                    ))
+                            )
+                        });
+                    
+                    card.child(consciousness_panel)
+                }
+            )
             .when(self.preview_expanded && !self.is_loading(), |card| {
                 let editor_view = v_flex()
                     .relative()
