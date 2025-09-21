@@ -11008,12 +11008,13 @@ mod tests {
                             | (Invisible::Tab { .. }, Invisible::Tab { .. }) => {}
                             _ => {
                                 panic!(
-                                    "At index {i}, expected invisible {expected_invisible:?} does not match actual {actual_invisible:?} by kind. Actual invisibles: {actual_invisibles:?}"
+                                    "At index {}, expected invisible {:?} does not match actual {:?} by kind. Actual invisibles: {:?}",
+                                    i, expected_invisible, actual_invisible, actual_invisibles
                                 )
                             }
                         },
                         None => {
-                            panic!("Unexpected extra invisible {actual_invisible:?} at index {i}")
+                            panic!("Unexpected extra invisible {:?} at index {}", actual_invisible, i)
                         }
                     }
                 }

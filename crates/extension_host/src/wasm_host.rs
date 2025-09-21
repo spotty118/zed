@@ -819,7 +819,7 @@ impl WasmState {
         let id = self.manifest.id.clone();
         async move {
             return_rx.await.unwrap_or_else(|_| {
-                panic!("main thread message channel, extension {name} (id {id})")
+                panic!("main thread message channel, extension {} (id {})", name, id)
             })
         }
     }

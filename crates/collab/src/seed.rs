@@ -126,11 +126,11 @@ async fn fetch_github<T: DeserializeOwned>(client: &reqwest::Client, url: &str) 
         .header("user-agent", "zed")
         .send()
         .await
-        .unwrap_or_else(|error| panic!("failed to fetch '{url}': {error}"));
+        .unwrap_or_else(|error| panic!("failed to fetch '{}': {}", url, error));
     let response_text = response.text().await.unwrap_or_else(|error| {
-        panic!("failed to fetch '{url}': {error}");
+        panic!("failed to fetch '{}': {}", url, error);
     });
     serde_json::from_str(&response_text).unwrap_or_else(|error| {
-        panic!("failed to deserialize github user from '{url}'. Error: '{error}', text: '{response_text}'");
+        panic!("failed to deserialize github user from '{}'. Error: '{}', text: '{}'", url, error, response_text);
     })
 }

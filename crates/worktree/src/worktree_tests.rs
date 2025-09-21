@@ -1155,7 +1155,7 @@ async fn test_fs_events_in_exclusions(cx: &mut TestAppContext) {
     ] {
         std::fs::write(directory_for_new_file.join("new_file"), "new file contents")
             .unwrap_or_else(|e| {
-                panic!("Failed to create in {directory_for_new_file:?} a new file: {e}")
+                panic!("Failed to create in {:?} a new file: {}", directory_for_new_file, e)
             });
     }
     tree.flush_fs_events(cx).await;
@@ -1221,7 +1221,7 @@ async fn test_fs_events_in_dot_git_worktree(cx: &mut TestAppContext) {
     });
 
     std::fs::write(dot_git_worktree_dir.join("new_file"), "new file contents")
-        .unwrap_or_else(|e| panic!("Failed to create in {dot_git_worktree_dir:?} a new file: {e}"));
+        .unwrap_or_else(|e| panic!("Failed to create in {:?} a new file: {}", dot_git_worktree_dir, e));
     tree.flush_fs_events(cx).await;
     tree.read_with(cx, |tree, _| {
         check_worktree_entries(tree, &[], &["HEAD", "foo", "new_file"], &[], &[])

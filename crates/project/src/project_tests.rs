@@ -7256,7 +7256,7 @@ async fn test_staging_hunks(cx: &mut gpui::TestAppContext) {
         let changed_range = changed_range.to_point(&snapshot);
         assert_eq!(changed_range, Point::new(1, 0)..Point::new(2, 0));
     } else {
-        panic!("Unexpected event {event:?}");
+        panic!("Unexpected event {:?}", event);
     }
 
     // When the write to the index completes, it appears as staged.
@@ -7298,7 +7298,7 @@ async fn test_staging_hunks(cx: &mut gpui::TestAppContext) {
         let changed_range = changed_range.to_point(&snapshot);
         assert_eq!(changed_range, Point::new(0, 0)..Point::new(4, 0));
     } else {
-        panic!("Unexpected event {event:?}");
+        panic!("Unexpected event {:?}", event);
     }
 
     // Simulate a problem writing to the git index.
@@ -7354,7 +7354,7 @@ async fn test_staging_hunks(cx: &mut gpui::TestAppContext) {
         let changed_range = changed_range.to_point(&snapshot);
         assert_eq!(changed_range, Point::new(3, 0)..Point::new(4, 0));
     } else {
-        panic!("Unexpected event {event:?}");
+        panic!("Unexpected event {:?}", event);
     }
 
     // When the write fails, the hunk returns to being unstaged.
@@ -7395,7 +7395,7 @@ async fn test_staging_hunks(cx: &mut gpui::TestAppContext) {
         let changed_range = changed_range.to_point(&snapshot);
         assert_eq!(changed_range, Point::new(0, 0)..Point::new(5, 0));
     } else {
-        panic!("Unexpected event {event:?}");
+        panic!("Unexpected event {:?}", event);
     }
 
     // Allow writing to the git index to succeed again.

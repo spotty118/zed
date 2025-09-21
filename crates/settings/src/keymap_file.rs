@@ -203,10 +203,10 @@ impl KeymapFile {
         match Self::load(content, cx) {
             KeymapFileLoadResult::Success { key_bindings, .. } => key_bindings,
             KeymapFileLoadResult::SomeFailedToLoad { error_message, .. } => {
-                panic!("{error_message}");
+                panic!("{}", error_message);
             }
             KeymapFileLoadResult::JsonParseFailure { error } => {
-                panic!("JSON parse error: {error}");
+                panic!("JSON parse error: {}", error);
             }
         }
     }

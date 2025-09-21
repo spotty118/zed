@@ -58,7 +58,7 @@ impl MacDisplay {
                 displays.set_len(display_count as usize);
                 displays.into_iter().map(MacDisplay)
             } else {
-                panic!("Failed to get active display list. Result: {result}");
+                panic!("Failed to get active display list. Result: {}", result);
             }
         }
     }

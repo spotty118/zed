@@ -1614,7 +1614,7 @@ pub mod tests {
                                                     + 1
                                             }
                                             unexpected => {
-                                                panic!("Unexpected language: {unexpected}")
+                                                panic!("Unexpected language: {}", unexpected)
                                             }
                                         };
 
