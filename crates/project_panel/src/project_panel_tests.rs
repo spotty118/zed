@@ -6583,7 +6583,7 @@ fn find_project_entry(
                 return worktree.entry_for_path(relative_path).map(|entry| entry.id);
             }
         }
-        panic!("no worktree for path {path:?}");
+        panic!("no worktree for path {:?}", path);
     })
 }
 
