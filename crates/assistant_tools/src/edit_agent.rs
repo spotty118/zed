@@ -51,6 +51,18 @@ impl Template for EditFileXmlPromptTemplate {
 }
 
 #[derive(Serialize)]
+struct EditFileXmlAgenticPromptTemplate {
+    path: Option<PathBuf>,
+    edit_description: String,
+    file_content: String,
+    context_information: String,
+}
+
+impl Template for EditFileXmlAgenticPromptTemplate {
+    const TEMPLATE_NAME: &'static str = "edit_file_prompt_xml_agentic.hbs";
+}
+
+#[derive(Serialize)]
 struct EditFileDiffFencedPromptTemplate {
     path: Option<PathBuf>,
     edit_description: String,
@@ -60,12 +72,28 @@ impl Template for EditFileDiffFencedPromptTemplate {
     const TEMPLATE_NAME: &'static str = "edit_file_prompt_diff_fenced.hbs";
 }
 
+#[derive(Serialize)]
+struct EditFileDiffFencedAgenticPromptTemplate {
+    path: Option<PathBuf>,
+    edit_description: String,
+    file_content: String,
+    context_information: String,
+}
+
+impl Template for EditFileDiffFencedAgenticPromptTemplate {
+    const TEMPLATE_NAME: &'static str = "edit_file_prompt_diff_fenced_agentic.hbs";
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditAgentOutputEvent {
     ResolvingEditRange(Range<Anchor>),
     UnresolvedEditRange,
     AmbiguousEditRange(Vec<Range<usize>>),
     Edited(Range<Anchor>),
+    ConsciousnessLog(String),
+    DeliberationStarted,
+    DeliberationCompleted,
+    ContextAnalyzed(String),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -81,6 +109,8 @@ pub struct EditAgent {
     project: Entity<Project>,
     templates: Arc<Templates>,
     edit_format: EditFormat,
+    consciousness_enabled: bool,
+    deliberation_enabled: bool,
 }
 
 impl EditAgent {
@@ -97,7 +127,19 @@ impl EditAgent {
             action_log,
             templates,
             edit_format,
+            consciousness_enabled: true,
+            deliberation_enabled: true,
         }
+    }
+
+    pub fn with_consciousness(mut self, enabled: bool) -> Self {
+        self.consciousness_enabled = enabled;
+        self
+    }
+
+    pub fn with_deliberation(mut self, enabled: bool) -> Self {
+        self.deliberation_enabled = enabled;
+        self
     }
 
     pub fn overwrite(
@@ -227,21 +269,71 @@ impl EditAgent {
         let (events_tx, events_rx) = mpsc::unbounded();
         let conversation = conversation.clone();
         let edit_format = self.edit_format;
+        let consciousness_enabled = self.consciousness_enabled;
+        let deliberation_enabled = self.deliberation_enabled;
+        
         let output = cx.spawn(async move |cx| {
             let snapshot = buffer.read_with(cx, |buffer, _| buffer.snapshot())?;
             let path = cx.update(|cx| snapshot.resolve_file_path(cx, true))?;
-            let prompt = match edit_format {
-                EditFormat::XmlTags => EditFileXmlPromptTemplate {
-                    path,
-                    edit_description,
+            
+            // Add consciousness logging
+            if consciousness_enabled {
+                events_tx.unbounded_send(EditAgentOutputEvent::ConsciousnessLog(
+                    format!("Initiating conscious editing for file: {:?}", path)
+                )).ok();
+            }
+            
+            // Add deliberation phase
+            if deliberation_enabled {
+                events_tx.unbounded_send(EditAgentOutputEvent::DeliberationStarted).ok();
+            }
+            
+            let prompt = if consciousness_enabled {
+                // Enhanced agentic prompting with context
+                let file_content = snapshot.text();
+                let context_information = this.analyze_file_context(&snapshot, &path);
+                
+                if deliberation_enabled {
+                    events_tx.unbounded_send(EditAgentOutputEvent::ContextAnalyzed(
+                        context_information.clone()
+                    )).ok();
                 }
-                .render(&this.templates)?,
-                EditFormat::DiffFenced => EditFileDiffFencedPromptTemplate {
-                    path,
-                    edit_description,
+                
+                match edit_format {
+                    EditFormat::XmlTags => EditFileXmlAgenticPromptTemplate {
+                        path,
+                        edit_description,
+                        file_content: file_content.to_string(),
+                        context_information,
+                    }
+                    .render(&this.templates)?,
+                    EditFormat::DiffFenced => EditFileDiffFencedAgenticPromptTemplate {
+                        path,
+                        edit_description,
+                        file_content: file_content.to_string(),
+                        context_information,
+                    }
+                    .render(&this.templates)?,
                 }
-                .render(&this.templates)?,
+            } else {
+                // Original prompting
+                match edit_format {
+                    EditFormat::XmlTags => EditFileXmlPromptTemplate {
+                        path,
+                        edit_description,
+                    }
+                    .render(&this.templates)?,
+                    EditFormat::DiffFenced => EditFileDiffFencedPromptTemplate {
+                        path,
+                        edit_description,
+                    }
+                    .render(&this.templates)?,
+                }
             };
+            
+            if deliberation_enabled {
+                events_tx.unbounded_send(EditAgentOutputEvent::DeliberationCompleted).ok();
+            }
 
             let edit_chunks = this
                 .request(conversation, CompletionIntent::EditFile, prompt, cx)
@@ -759,6 +851,71 @@ impl IndentDelta {
             IndentDelta::Spaces(n) => *n,
             IndentDelta::Tabs(n) => *n,
         }
+    }
+}
+
+impl EditAgent {
+    fn analyze_file_context(&self, snapshot: &BufferSnapshot, path: &Option<PathBuf>) -> String {
+        let mut context_info = Vec::new();
+        
+        // Basic file information
+        if let Some(path) = path {
+            context_info.push(format!("File: {}", path.display()));
+            
+            // Analyze file type and purpose
+            if let Some(extension) = path.extension().and_then(|s| s.to_str()) {
+                let file_type_analysis = match extension {
+                    "rs" => "Rust source file - focus on memory safety, ownership, and correctness",
+                    "py" => "Python source file - ensure proper indentation and Pythonic patterns",
+                    "js" | "ts" => "JavaScript/TypeScript file - consider async patterns and type safety",
+                    "html" => "HTML file - maintain proper structure and accessibility",
+                    "css" => "CSS file - ensure proper styling and responsiveness",
+                    "md" => "Markdown file - maintain readability and proper formatting",
+                    "json" => "JSON file - ensure valid syntax and structure",
+                    "toml" => "Configuration file - maintain proper structure",
+                    _ => "Source file - maintain consistency with existing patterns",
+                };
+                context_info.push(format!("File type analysis: {}", file_type_analysis));
+            }
+        }
+        
+        // Analyze file content patterns
+        let text = snapshot.text();
+        let line_count = text.lines().count();
+        context_info.push(format!("File size: {} lines", line_count));
+        
+        // Detect indentation style
+        let uses_tabs = text.lines().any(|line| line.starts_with('\t'));
+        let uses_spaces = text.lines().any(|line| line.starts_with("  "));
+        if uses_tabs {
+            context_info.push("Indentation: Uses tabs - maintain tab consistency".to_string());
+        } else if uses_spaces {
+            context_info.push("Indentation: Uses spaces - maintain space consistency".to_string());
+        }
+        
+        // Look for common patterns that indicate file purpose
+        if text.contains("fn main(") {
+            context_info.push("Contains main function - entry point file".to_string());
+        }
+        if text.contains("pub struct") || text.contains("pub enum") {
+            context_info.push("Contains public types - library code".to_string());
+        }
+        if text.contains("#[test]") || text.contains("mod tests") {
+            context_info.push("Contains tests - ensure test coverage and clarity".to_string());
+        }
+        if text.contains("TODO") || text.contains("FIXME") || text.contains("XXX") {
+            context_info.push("Contains TODO/FIXME comments - consider addressing these".to_string());
+        }
+        
+        // Warn about potential issues
+        if line_count > 500 {
+            context_info.push("Large file - consider if changes could be broken into smaller pieces".to_string());
+        }
+        
+        // Add consciousness reminder
+        context_info.push("IMPORTANT: Think carefully about the implications of your changes. Ensure they are minimal, safe, and maintain the existing code style and patterns.".to_string());
+        
+        context_info.join("\n")
     }
 }
 
