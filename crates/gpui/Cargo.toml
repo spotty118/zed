@@ -12,7 +12,7 @@ license = "Apache-2.0"
 workspace = true
 
 [features]
-default = ["font-kit", "wayland", "x11", "windows-manifest"]
+default = ["font-kit"]
 test-support = [
     "leak-detection",
     "collections/test-support",
@@ -68,9 +68,7 @@ x11 = [
     "open",
     "scap?/x11",
 ]
-screen-capture = [
-    "scap",
-]
+screen-capture = []
 windows-manifest = []
 
 [lib]
