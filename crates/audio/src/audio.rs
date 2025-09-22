@@ -8,14 +8,18 @@ mod non_windows_and_freebsd_deps {
     pub(super) use libwebrtc::native::apm;
     pub(super) use log::info;
     pub(super) use parking_lot::Mutex;
-    pub(super) use rodio::cpal::Sample;
-    pub(super) use rodio::source::{LimitSettings, UniformSourceIterator};
     pub(super) use std::sync::Arc;
+    
+    #[cfg(target_os = "macos")]
+    pub(super) use rodio::cpal::Sample;
+    #[cfg(target_os = "macos")]
+    pub(super) use rodio::source::{LimitSettings, UniformSourceIterator};
 }
 
 #[cfg(not(any(all(target_os = "windows", target_env = "gnu"), target_os = "freebsd")))]
 use non_windows_and_freebsd_deps::*;
 
+#[cfg(target_os = "macos")]
 use rodio::{
     Decoder, OutputStream, OutputStreamBuilder, Source, mixer::Mixer, nz, source::Buffered,
 };
@@ -24,9 +28,12 @@ use std::{io::Cursor, num::NonZero, path::PathBuf, sync::atomic::Ordering, time:
 use util::ResultExt;
 
 mod audio_settings;
+#[cfg(target_os = "macos")]
 mod replays;
+#[cfg(target_os = "macos")]
 mod rodio_ext;
 pub use audio_settings::AudioSettings;
+#[cfg(target_os = "macos")]
 pub use rodio_ext::RodioExt;
 
 use crate::audio_settings::LIVE_SETTINGS;
@@ -38,11 +45,15 @@ use crate::audio_settings::LIVE_SETTINGS;
 //
 // Since most noise cancelling requires 16kHz we will move to
 // that in the future.
-pub const SAMPLE_RATE: NonZero<u32> = nz!(48000);
-pub const CHANNEL_COUNT: NonZero<u16> = nz!(2);
+#[cfg(target_os = "macos")]
+pub const SAMPLE_RATE: NonZero<u32> = unsafe { NonZero::new_unchecked(48000) };
+#[cfg(target_os = "macos")]
+pub const CHANNEL_COUNT: NonZero<u16> = unsafe { NonZero::new_unchecked(2) };
+#[cfg(target_os = "macos")]
 pub const BUFFER_SIZE: usize = // echo canceller and livekit want 10ms of audio
-    (SAMPLE_RATE.get() as usize / 100) * CHANNEL_COUNT.get() as usize;
+    (48000_usize / 100) * 2;
 
+#[cfg(target_os = "macos")]
 pub const REPLAY_DURATION: Duration = Duration::from_secs(30);
 
 pub fn init(cx: &mut App) {
@@ -76,18 +87,24 @@ impl Sound {
 }
 
 pub struct Audio {
+    #[cfg(target_os = "macos")]
     output_handle: Option<OutputStream>,
+    #[cfg(target_os = "macos")]
     output_mixer: Option<Mixer>,
     #[cfg(not(any(all(target_os = "windows", target_env = "gnu"), target_os = "freebsd")))]
     pub echo_canceller: Arc<Mutex<apm::AudioProcessingModule>>,
+    #[cfg(target_os = "macos")]
     source_cache: HashMap<Sound, Buffered<Decoder<Cursor<Vec<u8>>>>>,
+    #[cfg(target_os = "macos")]
     replays: replays::Replays,
 }
 
 impl Default for Audio {
     fn default() -> Self {
         Self {
+            #[cfg(target_os = "macos")]
             output_handle: Default::default(),
+            #[cfg(target_os = "macos")]
             output_mixer: Default::default(),
             #[cfg(not(any(
                 all(target_os = "windows", target_env = "gnu"),
@@ -96,7 +113,9 @@ impl Default for Audio {
             echo_canceller: Arc::new(Mutex::new(apm::AudioProcessingModule::new(
                 true, false, false, false,
             ))),
+            #[cfg(target_os = "macos")]
             source_cache: Default::default(),
+            #[cfg(target_os = "macos")]
             replays: Default::default(),
         }
     }
@@ -104,6 +123,7 @@ impl Default for Audio {
 
 impl Global for Audio {}
 
+#[cfg(target_os = "macos")]
 impl Audio {
     fn ensure_output_exists(&mut self) -> Result<&Mixer> {
         if self.output_handle.is_none() {
@@ -160,7 +180,7 @@ impl Audio {
         let stream = rodio::microphone::MicrophoneBuilder::new()
             .default_device()?
             .default_config()?
-            .prefer_sample_rates([SAMPLE_RATE, SAMPLE_RATE.saturating_mul(nz!(2))])
+            .prefer_sample_rates([SAMPLE_RATE, SAMPLE_RATE.saturating_mul(unsafe { NonZero::new_unchecked(2) })])
             // .prefer_channel_counts([nz!(1), nz!(2)])
             .prefer_buffer_sizes(512..)
             .open_stream()?;
@@ -265,21 +285,65 @@ impl Audio {
     }
 }
 
+// Stub implementations for non-macOS platforms
+#[cfg(not(target_os = "macos"))]
+impl Audio {
+    pub fn save_replays(
+        &self,
+        _executor: BackgroundExecutor,
+    ) -> gpui::Task<anyhow::Result<(PathBuf, Duration)>> {
+        use std::{path::PathBuf, time::Duration};
+        gpui::Task::ready(Err(anyhow::anyhow!("Audio recording not supported on this platform")))
+    }
+
+    #[cfg(not(any(all(target_os = "windows", target_env = "gnu"), target_os = "freebsd")))]
+    pub fn open_microphone(_voip_parts: VoipParts) -> anyhow::Result<impl Send + 'static> {
+        struct DummySource;
+        unsafe impl Send for DummySource {}
+        Err::<DummySource, _>(anyhow::anyhow!("Microphone not supported on this platform"))
+    }
+
+    pub fn play_voip_stream(
+        _source: impl Send + 'static,
+        _speaker_name: String,
+        _is_staff: bool,
+        _cx: &mut App,
+    ) -> anyhow::Result<()> {
+        Ok(()) // Silently ignore on non-macOS platforms
+    }
+
+    pub fn play_sound(_sound: Sound, _cx: &mut App) {
+        // Silently ignore on non-macOS platforms
+    }
+
+    pub fn end_call(_cx: &mut App) {
+        // Silently ignore on non-macOS platforms
+    }
+}
+
 #[cfg(not(any(all(target_os = "windows", target_env = "gnu"), target_os = "freebsd")))]
 pub struct VoipParts {
     echo_canceller: Arc<Mutex<apm::AudioProcessingModule>>,
+    #[cfg(target_os = "macos")]
     replays: replays::Replays,
 }
 
 #[cfg(not(any(all(target_os = "windows", target_env = "gnu"), target_os = "freebsd")))]
 impl VoipParts {
     pub fn new(cx: &AsyncApp) -> anyhow::Result<Self> {
+        #[cfg(target_os = "macos")]
         let (apm, replays) = cx.try_read_default_global::<Audio, _>(|audio, _| {
             (Arc::clone(&audio.echo_canceller), audio.replays.clone())
+        })?;
+        
+        #[cfg(not(target_os = "macos"))]
+        let apm = cx.try_read_default_global::<Audio, _>(|audio, _| {
+            Arc::clone(&audio.echo_canceller)
         })?;
 
         Ok(Self {
             echo_canceller: apm,
+            #[cfg(target_os = "macos")]
             replays,
         })
     }

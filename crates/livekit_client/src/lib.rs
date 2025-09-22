@@ -2,11 +2,16 @@ use anyhow::Context as _;
 use collections::HashMap;
 
 mod remote_video_track_view;
-use cpal::traits::HostTrait as _;
 pub use remote_video_track_view::{RemoteVideoTrackView, RemoteVideoTrackViewEvent};
+
+#[cfg(target_os = "macos")]
+use cpal::traits::HostTrait as _;
+#[cfg(target_os = "macos")]
 use rodio::DeviceTrait as _;
 
+#[cfg(target_os = "macos")]
 mod record;
+#[cfg(target_os = "macos")]
 pub use record::CaptureInput;
 
 #[cfg(not(any(
@@ -180,6 +185,7 @@ pub enum RoomEvent {
     Reconnected,
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn default_device(
     input: bool,
 ) -> anyhow::Result<(cpal::Device, cpal::SupportedStreamConfig)> {
@@ -203,6 +209,7 @@ pub(crate) fn default_device(
     Ok((device, config))
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn get_sample_data(
     sample_format: cpal::SampleFormat,
     data: &cpal::Data,
@@ -223,6 +230,7 @@ pub(crate) fn get_sample_data(
     }
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn convert_sample_data<
     TSource: cpal::SizedSample,
     TDest: cpal::SizedSample + cpal::FromSample<TSource>,
