@@ -1,31 +1,29 @@
-# Zed
+# Zed (macOS-only build configuration)
 
 [![Zed](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zed-industries/zed/main/assets/badge/v0.json)](https://zed.dev)
 [![CI](https://github.com/zed-industries/zed/actions/workflows/ci.yml/badge.svg)](https://github.com/zed-industries/zed/actions/workflows/ci.yml)
 
 Welcome to Zed, a high-performance, multiplayer code editor from the creators of [Atom](https://github.com/atom/atom) and [Tree-sitter](https://github.com/tree-sitter/tree-sitter).
 
+**NOTE: This fork has been configured for macOS-only builds. Linux and Windows support has been disabled.**
+
 ---
 
 ### Installation
 
-On macOS and Linux you can [download Zed directly](https://zed.dev/download) or [install Zed via your local package manager](https://zed.dev/docs/linux#installing-via-a-package-manager).
+This build configuration is only available for macOS. You can build from source using the instructions below.
 
-Other platforms are not yet available:
-
-- Windows ([tracking issue](https://github.com/zed-industries/zed/issues/5394))
-- Web ([tracking issue](https://github.com/zed-industries/zed/issues/5396))
+For the official multi-platform version, visit [zed.dev](https://zed.dev/download).
 
 ### Developing Zed
 
-- [Building Zed for macOS](./docs/src/development/macos.md)
-- [Building Zed for Linux](./docs/src/development/linux.md)
-- [Building Zed for Windows](./docs/src/development/windows.md)
-- [Running Collaboration Locally](./docs/src/development/local-collaboration.md)
+- [Building Zed for macOS](./docs/src/development/macos.md) (Only supported platform in this configuration)
 
 ### Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for ways you can contribute to Zed.
+
+**Note**: This fork only supports macOS development. For cross-platform development, use the official Zed repository.
 
 Also... we're hiring! Check out our [jobs](https://zed.dev/jobs) page for open roles.
 
