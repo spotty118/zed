@@ -79,6 +79,24 @@ gpui = { workspace = true, features = ["screen-capture", "x11", "wayland", "wind
 gpui = { workspace = true, features = ["screen-capture"] }
 ```
 
+### 5. Fixed Audio Dependencies
+
+**File**: `crates/audio/Cargo.toml`
+
+The audio crate's rodio dependency has been made conditional to prevent alsa-sys from being pulled in on non-macOS platforms:
+
+```toml
+# Before
+[dependencies]
+rodio = { workspace = true, features = [ "wav", "playback", "wav_output" ] }
+
+# After  
+[target.'cfg(target_os = "macos")'.dependencies]
+rodio = { workspace = true, features = [ "wav", "playback", "wav_output" ] }
+```
+
+This change ensures that ALSA (Linux audio system) dependencies are not included when building for macOS-only environments.
+
 ## Building for macOS
 
 ### Prerequisites
@@ -120,7 +138,7 @@ With these changes, the following work correctly on macOS without X11 dependenci
 - macOS-native screen capture (ScreenCaptureKit)
 - Font rendering with font-kit
 - Metal-based GPU acceleration
-- Audio functionality (Core Audio on macOS)
+- Audio functionality (Core Audio on macOS, with rodio conditionally compiled)
 - Video calling (when built with proper target)
 
 ## Known Limitations
@@ -136,5 +154,6 @@ When building on non-macOS systems for macOS targets, some dependencies may stil
 ✅ GPUI builds successfully with macOS-only features  
 ✅ Zed dependencies updated to exclude X11/Wayland  
 ✅ LiveKit client updated to remove X11 dependencies  
+✅ Audio crate conditionally compiles rodio for macOS only to prevent alsa-sys dependencies  
 
-The core X11 build failure issue has been resolved. Any remaining dependency resolution issues are related to cross-compilation rather than code dependencies.
+The core X11 and ALSA build failure issues have been resolved. Any remaining dependency resolution issues are related to cross-compilation rather than code dependencies.
