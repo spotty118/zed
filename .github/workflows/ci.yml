@@ -321,13 +321,12 @@ jobs:
         if: always()
         run: rm -rf ./../.cargo
 
+  # Linux tests disabled for macOS-only build configuration
   linux_tests:
     timeout-minutes: 60
     name: (Linux) Run Clippy and tests
     needs: [job_spec]
-    if: |
-      github.repository_owner == 'zed-industries' &&
-      needs.job_spec.outputs.run_tests == 'true'
+    if: false  # Disabled for macOS-only build configuration
     runs-on:
       - namespace-profile-16x32-ubuntu-2204
     steps:
@@ -373,14 +372,13 @@ jobs:
         if: always()
         run: rm -rf ./../.cargo
 
+  # Linux doctests disabled for macOS-only build configuration
   doctests:
     # Nextest currently doesn't support doctests, so run them separately and in parallel.
     timeout-minutes: 60
     name: (Linux) Run doctests
     needs: [job_spec]
-    if: |
-      github.repository_owner == 'zed-industries' &&
-      needs.job_spec.outputs.run_tests == 'true'
+    if: false  # Disabled for macOS-only build configuration
     runs-on:
       - namespace-profile-16x32-ubuntu-2204
     steps:
@@ -413,13 +411,12 @@ jobs:
         if: always()
         run: rm -rf ./../.cargo
 
+  # Linux remote server build disabled for macOS-only build configuration
   build_remote_server:
     timeout-minutes: 60
     name: (Linux) Build Remote Server
     needs: [job_spec]
-    if: |
-      github.repository_owner == 'zed-industries' &&
-      needs.job_spec.outputs.run_tests == 'true'
+    if: false  # Disabled for macOS-only build configuration
     runs-on:
       - namespace-profile-16x32-ubuntu-2204
     steps:
@@ -452,13 +449,12 @@ jobs:
         if: always()
         run: rm -rf ./../.cargo
 
+  # Windows tests disabled for macOS-only build configuration
   windows_tests:
     timeout-minutes: 60
     name: (Windows) Run Clippy and tests
     needs: [job_spec]
-    if: |
-      github.repository_owner == 'zed-industries' &&
-      needs.job_spec.outputs.run_tests == 'true'
+    if: false  # Disabled for macOS-only build configuration
     runs-on: [self-32vcpu-windows-2022]
     steps:
       - name: Environment Setup
@@ -508,10 +504,11 @@ jobs:
       - migration_checks
       # run_tests: If adding required tests, add them here and to script below.
       - workspace_hack
-      - linux_tests
-      - build_remote_server
+      # Linux and Windows tests disabled for macOS-only build configuration
+      # - linux_tests
+      # - build_remote_server
       - macos_tests
-      - windows_tests
+      # - windows_tests
     if: |
       github.repository_owner == 'zed-industries' &&
       always()
@@ -535,9 +532,10 @@ jobs:
           if [[ "${{ needs.job_spec.outputs.run_tests }}" == "true" ]]; then
             [[ "${{ needs.workspace_hack.result }}"       != 'success' ]] && { RET_CODE=1; echo "Workspace Hack failed"; }
             [[ "${{ needs.macos_tests.result }}"          != 'success' ]] && { RET_CODE=1; echo "macOS tests failed"; }
-            [[ "${{ needs.linux_tests.result }}"          != 'success' ]] && { RET_CODE=1; echo "Linux tests failed"; }
-            [[ "${{ needs.windows_tests.result }}"        != 'success' ]] && { RET_CODE=1; echo "Windows tests failed"; }
-            [[ "${{ needs.build_remote_server.result }}"  != 'success' ]] && { RET_CODE=1; echo "Remote server build failed"; }
+            # Linux and Windows tests disabled for macOS-only build configuration
+            # [[ "${{ needs.linux_tests.result }}"          != 'success' ]] && { RET_CODE=1; echo "Linux tests failed"; }
+            # [[ "${{ needs.windows_tests.result }}"        != 'success' ]] && { RET_CODE=1; echo "Windows tests failed"; }
+            # [[ "${{ needs.build_remote_server.result }}"  != 'success' ]] && { RET_CODE=1; echo "Remote server build failed"; }
             # This check is intentionally disabled. See: https://github.com/zed-industries/zed/pull/28431
             # [[ "${{ needs.migration_checks.result }}"     != 'success' ]] && { RET_CODE=1; echo "Migration Checks failed"; }
           fi
@@ -639,14 +637,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Linux x86_64 bundle disabled for macOS-only build configuration
   bundle-linux-x86_x64:
     timeout-minutes: 60
     name: Linux x86_x64 release bundle
     runs-on:
       - namespace-profile-16x32-ubuntu-2004 # ubuntu 20.04 for minimal glibc
-    if: |
-      ( startsWith(github.ref, 'refs/tags/v')
-      || contains(github.event.pull_request.labels.*.name, 'run-bundling') )
+    if: false  # Disabled for macOS-only build configuration
     needs: [linux_tests]
     steps:
       - name: Checkout repo
@@ -697,14 +694,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Linux aarch64 bundle disabled for macOS-only build configuration
   bundle-linux-aarch64: # this runs on ubuntu22.04
     timeout-minutes: 60
     name: Linux arm64 release bundle
     runs-on:
       - namespace-profile-8x32-ubuntu-2004-arm-m4 # ubuntu 20.04 for minimal glibc
-    if: |
-      startsWith(github.ref, 'refs/tags/v')
-      || contains(github.event.pull_request.labels.*.name, 'run-bundling')
+    if: false  # Disabled for macOS-only build configuration
     needs: [linux_tests]
     steps:
       - name: Checkout repo
@@ -755,12 +751,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # FreeBSD build disabled for macOS-only build configuration
   freebsd:
     timeout-minutes: 60
     runs-on: github-8vcpu-ubuntu-2404
-    if: |
-      false && ( startsWith(github.ref, 'refs/tags/v')
-      || contains(github.event.pull_request.labels.*.name, 'run-bundling') )
+    if: false  # Disabled for macOS-only build configuration
     needs: [linux_tests]
     name: Build Zed on FreeBSD
     steps:
@@ -822,12 +817,12 @@ jobs:
       # excludes the final package to only cache dependencies
       cachix-filter: "-zed-editor-[0-9.]*-nightly"
 
+  # Windows bundle disabled for macOS-only build configuration
   bundle-windows-x64:
     timeout-minutes: 120
     name: Create a Windows installer
     runs-on: [self-32vcpu-windows-2022]
-    if: contains(github.event.pull_request.labels.*.name, 'run-bundling')
-    # if: (startsWith(github.ref, 'refs/tags/v') || contains(github.event.pull_request.labels.*.name, 'run-bundling'))
+    if: false  # Disabled for macOS-only build configuration
     needs: [windows_tests]
     env:
       AZURE_TENANT_ID: ${{ secrets.AZURE_SIGNING_TENANT_ID }}
@@ -884,7 +879,7 @@ jobs:
     if: |
       startsWith(github.ref, 'refs/tags/v')
       && endsWith(github.ref, '-pre') && !endsWith(github.ref, '.0-pre')
-    needs: [bundle-mac, bundle-linux-x86_x64, bundle-linux-aarch64, bundle-windows-x64]
+    needs: [bundle-mac]  # Only macOS bundle for macOS-only build configuration
     runs-on:
       - self-mini-macos
     steps:
