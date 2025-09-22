@@ -28,6 +28,7 @@ if [[ -n $apt ]]; then
     libasound2-dev
     libfontconfig-dev
     libwayland-dev
+    libx11-dev
     libx11-xcb-dev
     libxkbcommon-x11-dev
     libssl-dev
@@ -79,6 +80,7 @@ if [[ -n $dnf ]] || [[ -n $yum ]]; then
     alsa-lib-devel
     fontconfig-devel
     wayland-devel
+    libx11-devel
     libxcb-devel
     libxkbcommon-x11-devel
     openssl-devel
@@ -177,6 +179,7 @@ if [[ -n $pacman ]]; then
     fontconfig
     wayland
     libgit2
+    libx11
     libxcb
     libxkbcommon-x11
     openssl
@@ -205,6 +208,7 @@ if [[ -n $xbps ]]; then
     gcc
     alsa-lib-devel
     fontconfig-devel
+    libX11-devel
     libxcb-devel
     libxkbcommon-devel
     libzstd-devel
@@ -232,6 +236,7 @@ if [[ -n $emerge ]]; then
     media-libs/alsa-lib
     media-libs/fontconfig
     media-libs/vulkan-loader
+    x11-libs/libX11
     x11-libs/libxcb
     x11-libs/libxkbcommon
     sys-devel/mold
