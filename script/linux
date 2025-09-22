@@ -28,6 +28,7 @@ if [[ -n $apt ]]; then
     libasound2-dev
     libfontconfig-dev
     libwayland-dev
+    libx11-dev
     libx11-xcb-dev
     libxkbcommon-x11-dev
     libssl-dev
