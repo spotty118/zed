@@ -28,18 +28,15 @@ anyhow.workspace = true
 askpass.workspace = true
 assets.workspace = true
 assistant_tools.workspace = true
-audio.workspace = true
 auto_update.workspace = true
 auto_update_ui.workspace = true
 backtrace = "0.3"
 bincode.workspace = true
 breadcrumbs.workspace = true
-call.workspace = true
 channel.workspace = true
 clap.workspace = true
 cli.workspace = true
 client.workspace = true
-collab_ui.workspace = true
 collections.workspace = true
 command_palette.workspace = true
 component.workspace = true
@@ -68,10 +65,7 @@ git_hosting_providers.workspace = true
 git_ui.workspace = true
 go_to_line.workspace = true
 gpui = { workspace = true, features = [
-    "wayland",
-    "x11",
     "font-kit",
-    "windows-manifest",
 ] }
 gpui_tokio.workspace = true
 
