@@ -285,6 +285,42 @@ impl Audio {
     }
 }
 
+// Stub implementations for non-macOS platforms
+#[cfg(not(target_os = "macos"))]
+impl Audio {
+    pub fn save_replays(
+        &self,
+        _executor: BackgroundExecutor,
+    ) -> gpui::Task<anyhow::Result<(PathBuf, Duration)>> {
+        use std::{path::PathBuf, time::Duration};
+        gpui::Task::ready(Err(anyhow::anyhow!("Audio recording not supported on this platform")))
+    }
+
+    #[cfg(not(any(all(target_os = "windows", target_env = "gnu"), target_os = "freebsd")))]
+    pub fn open_microphone(_voip_parts: VoipParts) -> anyhow::Result<impl Send + 'static> {
+        struct DummySource;
+        unsafe impl Send for DummySource {}
+        Err::<DummySource, _>(anyhow::anyhow!("Microphone not supported on this platform"))
+    }
+
+    pub fn play_voip_stream(
+        _source: impl Send + 'static,
+        _speaker_name: String,
+        _is_staff: bool,
+        _cx: &mut App,
+    ) -> anyhow::Result<()> {
+        Ok(()) // Silently ignore on non-macOS platforms
+    }
+
+    pub fn play_sound(_sound: Sound, _cx: &mut App) {
+        // Silently ignore on non-macOS platforms
+    }
+
+    pub fn end_call(_cx: &mut App) {
+        // Silently ignore on non-macOS platforms
+    }
+}
+
 #[cfg(not(any(all(target_os = "windows", target_env = "gnu"), target_os = "freebsd")))]
 pub struct VoipParts {
     echo_canceller: Arc<Mutex<apm::AudioProcessingModule>>,
