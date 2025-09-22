@@ -2,16 +2,20 @@ use std::process::Command;
 
 const ZED_MANIFEST: &str = include_str!("../zed/Cargo.toml");
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let zed_cargo_toml: cargo_toml::Manifest =
-        toml::from_str(ZED_MANIFEST).expect("failed to parse zed Cargo.toml");
-    println!(
-        "cargo:rustc-env=ZED_PKG_VERSION={}",
-        zed_cargo_toml.package.unwrap().version.unwrap()
-    );
+        toml::from_str(ZED_MANIFEST)
+            .map_err(|e| format!("failed to parse zed Cargo.toml: {}", e))?;
+    
+    let package = zed_cargo_toml.package
+        .ok_or("zed Cargo.toml missing package section")?;
+    let version = package.version
+        .ok_or("zed Cargo.toml missing version")?;
+    
+    println!("cargo:rustc-env=ZED_PKG_VERSION={}", version);
     println!(
         "cargo:rustc-env=TARGET={}",
-        std::env::var("TARGET").unwrap()
+        std::env::var("TARGET")?
     );
 
     // Populate git sha environment variable if git is available
@@ -27,4 +31,6 @@ fn main() {
 
         println!("cargo:rustc-env=ZED_COMMIT_SHA={git_sha}");
     }
+    
+    Ok(())
 }

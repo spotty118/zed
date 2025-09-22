@@ -1,6 +1,6 @@
 use std::process::Command;
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     if cfg!(target_os = "macos") {
         println!("cargo:rustc-env=MACOSX_DEPLOYMENT_TARGET=10.15.7");
 
@@ -21,7 +21,7 @@ fn main() {
     println!("cargo:rerun-if-changed=../../.git/logs/HEAD");
     println!(
         "cargo:rustc-env=TARGET={}",
-        std::env::var("TARGET").unwrap()
+        std::env::var("TARGET")?
     );
     if let Ok(output) = Command::new("git").args(["rev-parse", "HEAD"]).output()
         && output.status.success()
@@ -69,7 +69,8 @@ fn main() {
         if let Some(explicit_rc_toolkit_path) = std::env::var("ZED_RC_TOOLKIT_PATH").ok() {
             res.set_toolkit_path(explicit_rc_toolkit_path.as_str());
         }
-        res.set_icon(icon.to_str().unwrap());
+        res.set_icon(icon.to_str()
+            .ok_or("Failed to convert icon path to string")?);
         res.set("FileDescription", "Zed");
         res.set("ProductName", "Zed");
 
@@ -78,4 +79,6 @@ fn main() {
             std::process::exit(1);
         }
     }
+    
+    Ok(())
 }

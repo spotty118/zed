@@ -28,7 +28,8 @@ fn copy_extension_api_rust_files() -> Result<(), Box<dyn std::error::Error>> {
                     let relative_path = subpath.strip_prefix(&input_dir)?;
                     let destination = output_dir.join(relative_path);
 
-                    fs::create_dir_all(destination.parent().unwrap())?;
+                    fs::create_dir_all(destination.parent()
+                        .ok_or("Failed to get parent directory")?)?;
                     fs::copy(&subpath, &destination)?;
                 }
             }
@@ -36,7 +37,8 @@ fn copy_extension_api_rust_files() -> Result<(), Box<dyn std::error::Error>> {
             let relative_path = path.strip_prefix(&input_dir)?;
             let destination = output_dir.join(relative_path);
 
-            fs::create_dir_all(destination.parent().unwrap())?;
+            fs::create_dir_all(destination.parent()
+                .ok_or("Failed to get parent directory")?)?;
             fs::copy(&path, &destination)?;
             println!("cargo:rerun-if-changed={}", path.display());
         }
